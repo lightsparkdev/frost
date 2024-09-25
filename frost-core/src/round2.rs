@@ -239,3 +239,73 @@ pub fn sign<C: Ciphersuite>(
 
     Ok(signature_share)
 }
+
+/// Performed once by each participant selected for the signing operation.
+pub fn sign_spark<C: Ciphersuite>(
+    signing_package: &SigningPackage<C>,
+    signer_nonces: &round1::SigningNonces<C>,
+    key_package: &frost::keys::KeyPackage<C>,
+    inner_coef_set_x: &BTreeSet<Identifier<C>>,
+    outer_coef_set_x: Option<&BTreeSet<Identifier<C>>>,
+    outer_signer_id: Option<&Identifier<C>>,
+    verifying_key: &VerifyingKey<C>,
+) -> Result<SignatureShare<C>, Error<C>> {
+    if signing_package.signing_commitments().len() < key_package.min_signers as usize {
+        return Err(Error::IncorrectNumberOfCommitments);
+    }
+
+    // Validate the signer's commitment is present in the signing package
+    let commitment = signing_package
+        .signing_commitments
+        .get(&key_package.identifier)
+        .ok_or(Error::MissingCommitment)?;
+
+    // Validate if the signer's commitment exists
+    if &signer_nonces.commitments != commitment {
+        return Err(Error::IncorrectCommitment);
+    }
+
+    // Encodes the signing commitment list produced in round one as part of generating [`BindingFactor`], the
+    // binding factor.
+    let binding_factor_list: BindingFactorList<C> =
+        compute_binding_factor_list(signing_package, &verifying_key, &[]);
+    let binding_factor: frost::BindingFactor<C> = binding_factor_list
+        .get(&key_package.identifier)
+        .ok_or(Error::UnknownIdentifier)?
+        .clone();
+
+    // Compute the group commitment from signing commitments produced in round one.
+    let group_commitment = compute_group_commitment(signing_package, &binding_factor_list)?;
+
+    // Compute Lagrange coefficient.
+    let inner_lambda_i =
+        frost::compute_lagrange_coefficient(inner_coef_set_x, None, *key_package.identifier())?;
+
+    let outer_lambda_i = match (outer_coef_set_x, outer_signer_id) {
+        (Some(outer_coef_set_x), Some(outer_signer_id)) => {
+            // If the user's key is a SSS shard, we need to compute the outer lambda_i
+            frost::compute_lagrange_coefficient(outer_coef_set_x, None, *outer_signer_id)?
+        }
+        // Otherwise, we use additive approach for user's key and SO's keys.
+        _ => <<C::Group as Group>::Field>::one(),
+    };
+
+    let lambda_i = inner_lambda_i * outer_lambda_i;
+    // Compute the per-message challenge.
+    let challenge = challenge::<C>(
+        &group_commitment.0,
+        &verifying_key,
+        signing_package.message(),
+    );
+
+    // Compute the Schnorr signature share.
+    let signature_share = compute_signature_share(
+        signer_nonces,
+        binding_factor,
+        lambda_i,
+        key_package,
+        challenge,
+    );
+
+    Ok(signature_share)
+}
