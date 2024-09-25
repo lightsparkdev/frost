@@ -697,3 +697,58 @@ where
 
     Ok(signature)
 }
+
+/// signature aggreation
+pub fn aggregate_spark<C>(
+    signing_package: &SigningPackage<C>,
+    signature_shares: &BTreeMap<Identifier<C>, round2::SignatureShare<C>>,
+    verifying_key: &VerifyingKey<C>,
+) -> Result<Signature<C>, Error<C>>
+where
+    C: Ciphersuite,
+{
+    // Check if signing_package.signing_commitments and signature_shares have
+    // the same set of identifiers, and if they are all in pubkeys.verifying_shares.
+    if signing_package.signing_commitments().len() != signature_shares.len() {
+        return Err(Error::UnknownIdentifier);
+    }
+
+    // if !signing_package.signing_commitments().keys().all(|id| {
+    //     #[cfg(feature = "cheater-detection")]
+    //     return signature_shares.contains_key(id) && pubkeys.verifying_shares().contains_key(id);
+    //     #[cfg(not(feature = "cheater-detection"))]
+    //     return signature_shares.contains_key(id);
+    // }) {
+    //     return Err(Error::UnknownIdentifier);
+    // }
+
+    // Encodes the signing commitment list produced in round one as part of generating [`BindingFactor`], the
+    // binding factor.
+    let binding_factor_list: BindingFactorList<C> =
+        compute_binding_factor_list(signing_package, &verifying_key, &[]);
+    // Compute the group commitment from signing commitments produced in round one.
+    let group_commitment = compute_group_commitment(signing_package, &binding_factor_list)?;
+
+    // The aggregation of the signature shares by summing them up, resulting in
+    // a plain Schnorr signature.
+    //
+    // Implements [`aggregate`] from the spec.
+    //
+    // [`aggregate`]: https://datatracker.ietf.org/doc/html/rfc9591#name-signature-share-aggregation
+    let mut z = <<C::Group as Group>::Field>::zero();
+
+    for signature_share in signature_shares.values() {
+        z = z + signature_share.share;
+    }
+
+    let signature = Signature {
+        R: group_commitment.0,
+        z,
+    };
+
+    // Verify the aggregate signature
+    let verification_result = verifying_key.verify(signing_package.message(), &signature);
+    verification_result?;
+
+    Ok(signature)
+}

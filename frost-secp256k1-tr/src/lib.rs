@@ -720,6 +720,27 @@ pub mod round2 {
     ) -> Result<SignatureShare, Error> {
         frost::round2::sign(signing_package, signer_nonces, key_package)
     }
+
+    /// Spark custom signing operation.
+    pub fn sign_spark(
+        signing_package: &SigningPackage,
+        signer_nonces: &round1::SigningNonces,
+        key_package: &keys::KeyPackage,
+        inner_coef_set_x: &std::collections::BTreeSet<Identifier>,
+        outer_coef_set_x: Option<&std::collections::BTreeSet<Identifier>>,
+        outer_signer_id: Option<&Identifier>,
+        verifiying_key: &VerifyingKey,
+    ) -> Result<SignatureShare, Error> {
+        frost::round2::sign_spark(
+            signing_package,
+            signer_nonces,
+            key_package,
+            inner_coef_set_x,
+            outer_coef_set_x,
+            outer_signer_id,
+            verifiying_key,
+        )
+    }
 }
 
 /// A Schnorr signature on FROST(secp256k1, SHA-256).
@@ -746,6 +767,15 @@ pub fn aggregate(
     pubkeys: &keys::PublicKeyPackage,
 ) -> Result<Signature, Error> {
     frost::aggregate(signing_package, signature_shares, pubkeys)
+}
+
+/// Spark
+pub fn aggregate_spark(
+    signing_package: &SigningPackage,
+    signature_shares: &BTreeMap<Identifier, round2::SignatureShare>,
+    verifying_key: &VerifyingKey,
+) -> Result<Signature, Error> {
+    frost::aggregate_spark(signing_package, signature_shares, verifying_key)
 }
 
 /// A signing key for a Schnorr signature on FROST(secp256k1, SHA-256).
