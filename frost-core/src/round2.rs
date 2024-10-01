@@ -292,10 +292,10 @@ pub fn sign_spark<C: Ciphersuite>(
 
     let lambda_i = inner_lambda_i * outer_lambda_i;
     // Compute the per-message challenge.
-    let challenge = challenge::<C>(
+    let challenge = <C>::challenge(
         &group_commitment.0,
         &verifying_key,
-        signing_package.message(),
+        &signing_package.sig_target,
     );
 
     // Compute the Schnorr signature share.
