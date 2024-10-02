@@ -429,6 +429,7 @@ impl Ciphersuite for Secp256K1Sha256 {
         group_commitment: GroupCommitment<S>,
         lambda_i: <<Self::Group as Group>::Field as Field>::Scalar,
         key_package: &frost::keys::KeyPackage<S>,
+        verifying_key: &VerifyingKey,
         challenge: Challenge<S>,
         sig_params: &SigningParameters,
     ) -> round2::SignatureShare {
@@ -438,7 +439,7 @@ impl Ciphersuite for Secp256K1Sha256 {
         }
 
         let mut kp = key_package.clone();
-        let public_key = key_package.verifying_key();
+        let public_key = verifying_key;
         let pubkey_is_odd: bool = public_key.y_is_odd();
         let tweaked_pubkey_is_odd: bool =
             tweaked_public_key(public_key, sig_params.tapscript_merkle_root.as_ref())

@@ -741,10 +741,10 @@ where
         z = z + signature_share.share;
     }
 
-    let signature = Signature {
-        R: group_commitment.0,
-        z,
-    };
+    let R = <C>::effective_nonce_element(group_commitment.0);
+
+    let signature: Signature<C> =
+        <C>::aggregate_sig_finalize(z, R, &verifying_key, &signing_package.sig_target);
 
     // Verify the aggregate signature
     let verification_result = verifying_key.verify(signing_package.message(), &signature);

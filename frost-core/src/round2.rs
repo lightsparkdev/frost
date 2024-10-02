@@ -233,6 +233,7 @@ pub fn sign<C: Ciphersuite>(
         group_commitment,
         lambda_i,
         key_package,
+        key_package.verifying_key(),
         challenge,
         &signing_package.sig_target.sig_params,
     );
@@ -299,12 +300,15 @@ pub fn sign_spark<C: Ciphersuite>(
     );
 
     // Compute the Schnorr signature share.
-    let signature_share = compute_signature_share(
+    let signature_share = <C>::compute_signature_share(
         signer_nonces,
         binding_factor,
+        group_commitment,
         lambda_i,
         key_package,
+        verifying_key,
         challenge,
+        &signing_package.sig_target.sig_params,
     );
 
     Ok(signature_share)
