@@ -375,6 +375,7 @@ pub trait Ciphersuite: Copy + Clone + PartialEq + Debug {
         _group_commitment: GroupCommitment<Self>,
         lambda_i: <<Self::Group as Group>::Field as Field>::Scalar,
         key_package: &KeyPackage<Self>,
+        _verifying_key: &VerifyingKey<Self>,
         challenge: Challenge<Self>,
         _sig_params: &Self::SigningParameters,
     ) -> round2::SignatureShare<Self> {
