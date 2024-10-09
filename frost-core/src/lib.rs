@@ -747,7 +747,7 @@ where
         <C>::aggregate_sig_finalize(z, R, &verifying_key, &signing_package.sig_target);
 
     // Verify the aggregate signature
-    let verification_result = verifying_key.verify(signing_package.message(), &signature);
+    let verification_result = verifying_key.verify(signing_package.sig_target.clone(), &signature);
     verification_result?;
 
     Ok(signature)
