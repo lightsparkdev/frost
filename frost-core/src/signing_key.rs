@@ -2,10 +2,7 @@
 
 use rand_core::{CryptoRng, RngCore};
 
-use crate::{
-    random_nonzero, Challenge, Ciphersuite, Error, Field, Group, Scalar, Signature, SigningTarget,
-    VerifyingKey,
-};
+use crate::{negate, random_nonzero, Challenge, Ciphersuite, Error, Field, Group, Scalar, Signature, SigningTarget, VerifyingKey};
 
 /// A signing key for a Schnorr signature on a FROST [`Ciphersuite::Group`].
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -25,6 +22,43 @@ where
         let scalar = random_nonzero::<C, R>(rng);
 
         SigningKey { scalar }
+    }
+
+    /// Generate a new even signing key.
+    pub fn new_even<R: RngCore + CryptoRng>(rng: &mut R) -> SigningKey<C> {
+        loop {
+            let mut scalar = random_nonzero::<C, R>(rng);
+
+            let mut sk = SigningKey { scalar };
+
+            let pubkey = VerifyingKey::from(&sk);
+
+            if !pubkey.y_is_odd() {
+                println!("DKG PUBKEY: {:?}", hex::encode(VerifyingKey::from(&sk).serialize()));
+                return sk
+            }
+        }
+
+        // let mut scalar = random_nonzero::<C, R>(rng);
+        //
+        // let mut sk = SigningKey { scalar };
+        //
+        // let pubkey = VerifyingKey::from(&sk);
+        //
+        // if pubkey.y_is_odd() {
+        //     println!("NEGATE: {:?}", hex::encode(pubkey.serialize()));
+        //     sk.negate();
+        // }
+        //
+        // println!("DKG PUBKEY: {:?}", hex::encode(VerifyingKey::from(&sk).serialize()));
+        //
+        // sk
+    }
+
+    /// Negate a signing key
+    pub fn negate(mut self) -> Self {
+        self.scalar = negate::<C>(&self.scalar);
+        self
     }
 
     /// Deserialize from bytes

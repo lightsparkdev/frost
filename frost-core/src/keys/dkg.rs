@@ -278,7 +278,7 @@ pub fn part1<C: Ciphersuite, R: RngCore + CryptoRng>(
 ) -> Result<(round1::SecretPackage<C>, round1::Package<C>), Error<C>> {
     validate_num_of_signers::<C>(min_signers, max_signers)?;
 
-    let secret: SigningKey<C> = SigningKey::new(&mut rng);
+    let secret: SigningKey<C> = SigningKey::new_even(&mut rng);
 
     // Round 1, Step 1
     //

@@ -131,6 +131,11 @@ pub(crate) fn random_nonzero<C: Ciphersuite, R: RngCore + CryptoRng>(rng: &mut R
     }
 }
 
+/// Negates a scalar.
+pub(crate) fn negate<C: Ciphersuite>(scalar: &Scalar<C>) -> Scalar<C> {
+    <<C::Group as Group>::Field>::negate(scalar)
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Zeroize)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
