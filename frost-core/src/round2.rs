@@ -158,7 +158,14 @@ pub fn sign<C: Ciphersuite>(
     let group_commitment = compute_group_commitment(&signing_package, &binding_factor_list)?;
 
     // Compute Lagrange coefficient.
-    let lambda_i = frost::derive_interpolating_value(key_package.identifier(), &signing_package)?;
+    let lambda_i = match signing_package.signing_participants.clone() {
+        Some(signing_participants) => frost::compute_lagrange_coefficient(
+            &signing_participants,
+            None,
+            *key_package.identifier(),
+        )?,
+        None => frost::derive_interpolating_value(key_package.identifier(), &signing_package)?,
+    };
 
     // Compute the per-message challenge.
     let challenge = <C>::challenge(

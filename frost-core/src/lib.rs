@@ -367,6 +367,10 @@ pub struct SigningPackage<C: Ciphersuite> {
     /// The set of commitments participants published in the first round of the
     /// protocol.
     signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
+
+    /// The set of participants that are signing.
+    signing_participants: Option<BTreeSet<Identifier<C>>>,
+
     /// Message which each participant will sign.
     ///
     /// Each signer should perform protocol-specific verification on the
@@ -395,6 +399,21 @@ where
         SigningPackage {
             header: Header::default(),
             signing_commitments,
+            signing_participants: None,
+            message: message.to_vec(),
+        }
+    }
+
+    /// Create a new `SigningPackage` with a set of signing participants.
+    pub fn new_with_participants(
+        signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
+        signing_participants: BTreeSet<Identifier<C>>,
+        message: &[u8],
+    ) -> SigningPackage<C> {
+        SigningPackage {
+            header: Header::default(),
+            signing_commitments,
+            signing_participants: Some(signing_participants),
             message: message.to_vec(),
         }
     }
