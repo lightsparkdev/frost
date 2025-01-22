@@ -912,3 +912,20 @@ pub type SigningKey = frost_core::SigningKey<S>;
 
 /// A valid verifying key for Schnorr signatures on FROST(secp256k1, SHA-256).
 pub type VerifyingKey = frost_core::VerifyingKey<S>;
+
+/// Verifies a signature share for the given participant `identifier`,
+pub fn verify_signature_share(
+    identifier: Identifier,
+    verifying_share: &keys::VerifyingShare,
+    signature_share: &round2::SignatureShare,
+    signing_package: &SigningPackage,
+    verifying_key: &VerifyingKey,
+) -> Result<(), Error> {
+    frost_core::verify_signature_share(
+        identifier,
+        verifying_share,
+        signature_share,
+        signing_package,
+        verifying_key,
+    )
+}
