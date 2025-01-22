@@ -369,7 +369,7 @@ pub struct SigningPackage<C: Ciphersuite> {
     signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
 
     /// The set of participants that are signing.
-    signing_participants: Option<BTreeSet<Identifier<C>>>,
+    signing_participants_groups: Option<Vec<BTreeSet<Identifier<C>>>>,
 
     /// Message which each participant will sign.
     ///
@@ -399,21 +399,21 @@ where
         SigningPackage {
             header: Header::default(),
             signing_commitments,
-            signing_participants: None,
+            signing_participants_groups: None,
             message: message.to_vec(),
         }
     }
 
     /// Create a new `SigningPackage` with a set of signing participants.
-    pub fn new_with_participants(
+    pub fn new_with_participants_groups(
         signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
-        signing_participants: BTreeSet<Identifier<C>>,
+        signing_participants_groups: Vec<BTreeSet<Identifier<C>>>,
         message: &[u8],
     ) -> SigningPackage<C> {
         SigningPackage {
             header: Header::default(),
             signing_commitments,
-            signing_participants: Some(signing_participants),
+            signing_participants_groups: Some(signing_participants_groups),
             message: message.to_vec(),
         }
     }
@@ -768,7 +768,23 @@ fn verify_signature_share_precomputed<C: Ciphersuite>(
     verifying_share: &keys::VerifyingShare<C>,
     challenge: Challenge<C>,
 ) -> Result<(), Error<C>> {
-    let lambda_i = derive_interpolating_value(&signature_share_identifier, signing_package)?;
+    let lambda_i = match signing_package.signing_participants_groups.clone() {
+        Some(signing_participants_groups) => {
+            let mut result: Result<Scalar<C>, Error<C>> = Err(Error::UnknownIdentifier);
+            for signing_participants_group in signing_participants_groups {
+                if signing_participants_group.contains(&signature_share_identifier) {
+                    result = compute_lagrange_coefficient(
+                        &signing_participants_group,
+                        None,
+                        signature_share_identifier,
+                    );
+                    break;
+                }
+            }
+            result?
+        }
+        None => derive_interpolating_value(&signature_share_identifier, signing_package)?,
+    };
 
     let binding_factor = binding_factor_list
         .get(&signature_share_identifier)
