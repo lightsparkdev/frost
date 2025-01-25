@@ -383,6 +383,9 @@ pub struct SigningPackage<C: Ciphersuite> {
         )
     )]
     message: Vec<u8>,
+
+    /// The adaptor for the signing operation.
+    adaptor: Option<VerifyingKey<C>>,
 }
 
 impl<C> SigningPackage<C>
@@ -401,6 +404,7 @@ where
             signing_commitments,
             signing_participants_groups: None,
             message: message.to_vec(),
+            adaptor: None,
         }
     }
 
@@ -415,6 +419,23 @@ where
             signing_commitments,
             signing_participants_groups: Some(signing_participants_groups),
             message: message.to_vec(),
+            adaptor: None,
+        }
+    }
+
+    /// Create a new `SigningPackage` with a set of signing participants and an adaptor.
+    pub fn new_with_adaptor(
+        signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
+        signing_participants_groups: Vec<BTreeSet<Identifier<C>>>,
+        message: &[u8],
+        adaptor: VerifyingKey<C>,
+    ) -> SigningPackage<C> {
+        SigningPackage {
+            header: Header::default(),
+            signing_commitments,
+            signing_participants_groups: Some(signing_participants_groups),
+            message: message.to_vec(),
+            adaptor: Some(adaptor),
         }
     }
 
@@ -555,6 +576,10 @@ where
 
     group_commitment = group_commitment + accumulated_binding_commitment;
 
+    if let Some(adaptor) = signing_package.adaptor {
+        group_commitment = group_commitment + adaptor.to_element();
+    }
+
     Ok(GroupCommitment(group_commitment))
 }
 
@@ -629,6 +654,11 @@ where
         R: group_commitment.0,
         z,
     };
+
+    if signing_package.adaptor.is_some() {
+        // If there is an adaptor, we skip the verification step.
+        return Ok(signature);
+    }
 
     // Verify the aggregate signature
     let verification_result = pubkeys
