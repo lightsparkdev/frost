@@ -367,6 +367,10 @@ pub struct SigningPackage<C: Ciphersuite> {
     /// The set of commitments participants published in the first round of the
     /// protocol.
     signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
+
+    /// The set of participants that are signing.
+    signing_participants_groups: Option<Vec<BTreeSet<Identifier<C>>>>,
+
     /// Message which each participant will sign.
     ///
     /// Each signer should perform protocol-specific verification on the
@@ -379,6 +383,9 @@ pub struct SigningPackage<C: Ciphersuite> {
         )
     )]
     message: Vec<u8>,
+
+    /// The adaptor for the signing operation.
+    adaptor: Option<VerifyingKey<C>>,
 }
 
 impl<C> SigningPackage<C>
@@ -395,7 +402,40 @@ where
         SigningPackage {
             header: Header::default(),
             signing_commitments,
+            signing_participants_groups: None,
             message: message.to_vec(),
+            adaptor: None,
+        }
+    }
+
+    /// Create a new `SigningPackage` with a set of signing participants.
+    pub fn new_with_participants_groups(
+        signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
+        signing_participants_groups: Option<Vec<BTreeSet<Identifier<C>>>>,
+        message: &[u8],
+    ) -> SigningPackage<C> {
+        SigningPackage {
+            header: Header::default(),
+            signing_commitments,
+            signing_participants_groups: signing_participants_groups,
+            message: message.to_vec(),
+            adaptor: None,
+        }
+    }
+
+    /// Create a new `SigningPackage` with a set of signing participants and an adaptor.
+    pub fn new_with_adaptor(
+        signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
+        signing_participants_groups: Option<Vec<BTreeSet<Identifier<C>>>>,
+        message: &[u8],
+        adaptor: Option<VerifyingKey<C>>,
+    ) -> SigningPackage<C> {
+        SigningPackage {
+            header: Header::default(),
+            signing_commitments,
+            signing_participants_groups: signing_participants_groups,
+            message: message.to_vec(),
+            adaptor: adaptor,
         }
     }
 
@@ -536,6 +576,10 @@ where
 
     group_commitment = group_commitment + accumulated_binding_commitment;
 
+    if let Some(adaptor) = signing_package.adaptor {
+        group_commitment = group_commitment + adaptor.to_element();
+    }
+
     Ok(GroupCommitment(group_commitment))
 }
 
@@ -610,6 +654,11 @@ where
         R: group_commitment.0,
         z,
     };
+
+    if signing_package.adaptor.is_some() {
+        // If there is an adaptor, we skip the verification step.
+        return Ok(signature);
+    }
 
     // Verify the aggregate signature
     let verification_result = pubkeys
@@ -749,7 +798,23 @@ fn verify_signature_share_precomputed<C: Ciphersuite>(
     verifying_share: &keys::VerifyingShare<C>,
     challenge: Challenge<C>,
 ) -> Result<(), Error<C>> {
-    let lambda_i = derive_interpolating_value(&signature_share_identifier, signing_package)?;
+    let lambda_i = match signing_package.signing_participants_groups.clone() {
+        Some(signing_participants_groups) => {
+            let mut result: Result<Scalar<C>, Error<C>> = Err(Error::UnknownIdentifier);
+            for signing_participants_group in signing_participants_groups {
+                if signing_participants_group.contains(&signature_share_identifier) {
+                    result = compute_lagrange_coefficient(
+                        &signing_participants_group,
+                        None,
+                        signature_share_identifier,
+                    );
+                    break;
+                }
+            }
+            result?
+        }
+        None => derive_interpolating_value(&signature_share_identifier, signing_package)?,
+    };
 
     let binding_factor = binding_factor_list
         .get(&signature_share_identifier)
