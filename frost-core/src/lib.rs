@@ -411,13 +411,13 @@ where
     /// Create a new `SigningPackage` with a set of signing participants.
     pub fn new_with_participants_groups(
         signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
-        signing_participants_groups: Vec<BTreeSet<Identifier<C>>>,
+        signing_participants_groups: Option<Vec<BTreeSet<Identifier<C>>>>,
         message: &[u8],
     ) -> SigningPackage<C> {
         SigningPackage {
             header: Header::default(),
             signing_commitments,
-            signing_participants_groups: Some(signing_participants_groups),
+            signing_participants_groups: signing_participants_groups,
             message: message.to_vec(),
             adaptor: None,
         }
@@ -426,16 +426,16 @@ where
     /// Create a new `SigningPackage` with a set of signing participants and an adaptor.
     pub fn new_with_adaptor(
         signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
-        signing_participants_groups: Vec<BTreeSet<Identifier<C>>>,
+        signing_participants_groups: Option<Vec<BTreeSet<Identifier<C>>>>,
         message: &[u8],
-        adaptor: VerifyingKey<C>,
+        adaptor: Option<VerifyingKey<C>>,
     ) -> SigningPackage<C> {
         SigningPackage {
             header: Header::default(),
             signing_commitments,
-            signing_participants_groups: Some(signing_participants_groups),
+            signing_participants_groups: signing_participants_groups,
             message: message.to_vec(),
-            adaptor: Some(adaptor),
+            adaptor: adaptor,
         }
     }
 
