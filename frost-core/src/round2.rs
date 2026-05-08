@@ -164,7 +164,7 @@ pub fn sign<C: Ciphersuite>(
         Some(signing_participants_groups) => {
             let mut result: Result<Scalar<C>, Error<C>> = Err(Error::UnknownIdentifier);
             for signing_participants_group in signing_participants_groups {
-                if signing_participants_group.contains(&key_package.identifier()) {
+                if signing_participants_group.contains(key_package.identifier()) {
                     result = frost::compute_lagrange_coefficient(
                         &signing_participants_group,
                         None,

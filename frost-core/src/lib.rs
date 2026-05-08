@@ -415,7 +415,7 @@ where
         SigningPackage {
             header: Header::default(),
             signing_commitments,
-            signing_participants_groups: signing_participants_groups,
+            signing_participants_groups,
             message: message.to_vec(),
             adaptor: None,
         }
@@ -431,9 +431,9 @@ where
         SigningPackage {
             header: Header::default(),
             signing_commitments,
-            signing_participants_groups: signing_participants_groups,
+            signing_participants_groups,
             message: message.to_vec(),
-            adaptor: adaptor,
+            adaptor,
         }
     }
 
