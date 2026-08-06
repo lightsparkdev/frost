@@ -1,13 +1,13 @@
 //! Tests for two-group signing with group-tagged binding factors
 //! (`frost_core::two_group`) over the secp256k1-tr ciphersuite.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
 use frost_core::two_group::{self, SignerGroup, TwoGroupSigningPackage};
 use frost_secp256k1_tr as frost;
 
-use frost::keys::{IdentifierList, KeyPackage, PublicKeyPackage, Tweak};
+use frost::keys::{EvenY, IdentifierList, KeyPackage, PublicKeyPackage, Tweak};
 use frost::round1::{SigningCommitments, SigningNonces};
 use frost::round2::SignatureShare;
 use frost::{Identifier, VerifyingKey};
@@ -110,12 +110,30 @@ fn ids(range: std::ops::RangeInclusive<u16>) -> Vec<Identifier> {
         .collect()
 }
 
+/// Each round's parities are random, so coverage of the even-Y branches has to
+/// be waited for rather than assumed.
+fn sign_until_parity_cases_seen<K: Ord>(
+    cases: usize,
+    mut round: impl FnMut() -> Result<K, Box<dyn Error>>,
+) -> Result<(), Box<dyn Error>> {
+    let mut seen = BTreeSet::new();
+    for _ in 0..256 {
+        seen.insert(round()?);
+        if seen.len() == cases {
+            return Ok(());
+        }
+    }
+    panic!(
+        "only {} of {cases} parity cases occurred in 256 rounds",
+        seen.len()
+    );
+}
+
 #[test]
 fn sign_and_aggregate_verifies() -> Result<(), Box<dyn Error>> {
     // Default identifier lists give BOTH groups identifiers 1..=n, so every
     // run of this test also exercises cross-group identifier collisions.
-    // Iterate so both parities of the aggregate nonce R occur.
-    for _ in 0..8 {
+    sign_until_parity_cases_seen(2, || {
         let groups = make_groups((5, 3), (3, 2), None, None)?;
         let message = b"two-group message";
 
@@ -138,8 +156,8 @@ fn sign_and_aggregate_verifies() -> Result<(), Box<dyn Error>> {
 
         let signature = two_group::aggregate(&package, &p_shares, &s_shares, &groups.pubkeys)?;
         groups.combined_vk.verify(message, &signature)?;
-    }
-    Ok(())
+        Ok(signature.has_even_y())
+    })
 }
 
 #[test]
@@ -312,10 +330,10 @@ fn tweaked_two_group_sign_and_aggregate_verifies() -> Result<(), Box<dyn Error>>
     // sign without further tweaking. The aggregation public-key package holds
     // the tweaked combined key and the primary verifying shares exactly as
     // the primary signers signed (pre-normalized, no tweak).
-    use frost::keys::{EvenY, VerifyingShare};
+    use frost::keys::VerifyingShare;
 
     let merkle_root: Vec<u8> = vec![];
-    for _ in 0..4 {
+    sign_until_parity_cases_seen(4, || {
         let groups = make_groups((5, 3), (3, 2), None, None)?;
         let message = b"tweaked two-group message";
 
@@ -365,8 +383,9 @@ fn tweaked_two_group_sign_and_aggregate_verifies() -> Result<(), Box<dyn Error>>
         untweaked_vk
             .verify(message, &signature)
             .expect_err("signature must not verify under the untweaked key");
-    }
-    Ok(())
+
+        Ok((untweaked_vk.has_even_y(), signature.has_even_y()))
+    })
 }
 
 #[test]
