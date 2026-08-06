@@ -38,6 +38,7 @@ pub mod keys;
 pub mod round1;
 pub mod round2;
 mod scalar_mul;
+pub mod two_group;
 // We'd like to make this conditionally pub but the attribute below does
 // not work yet (https://github.com/rust-lang/rust/issues/54727)
 // #[cfg_attr(feature = "internals", visibility::make(pub))]
