@@ -127,7 +127,15 @@ pub fn sign<C: Ciphersuite>(
     signer_nonces: &round1::SigningNonces<C>,
     key_package: &frost::keys::KeyPackage<C>,
 ) -> Result<SignatureShare<C>, Error<C>> {
-    if signing_package.signing_commitments().len() < key_package.min_signers as usize {
+    let own_group_len = match &signing_package.signing_participants_groups {
+        Some(groups) => groups
+            .iter()
+            .find(|group| group.contains(&key_package.identifier))
+            .ok_or(Error::UnknownIdentifier)?
+            .len(),
+        None => signing_package.signing_commitments().len(),
+    };
+    if own_group_len < key_package.min_signers as usize {
         return Err(Error::IncorrectNumberOfCommitments);
     }
 
