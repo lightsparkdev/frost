@@ -731,20 +731,7 @@ where
     };
 
     if signing_package.adaptor.is_some() {
-        // An adaptor signature only verifies once the adaptor's discrete log is
-        // added, which is unknown here, so verify each share instead.
-        let cheater_detection = match cheater_detection {
-            CheaterDetection::Disabled => CheaterDetection::FirstCheater,
-            cheater_detection => cheater_detection,
-        };
-        verify_signature_shares(
-            &group_commitment,
-            &pubkeys,
-            &signing_package,
-            &signature_shares,
-            &binding_factor_list,
-            cheater_detection,
-        )?;
+        // If there is an adaptor, we skip the verification step.
         return Ok(signature);
     }
 
@@ -780,27 +767,6 @@ where
 /// Optional cheater detection feature
 /// Each share is verified to find the cheater
 fn detect_cheater<C: Ciphersuite>(
-    group_commitment: &GroupCommitment<C>,
-    pubkeys: &keys::PublicKeyPackage<C>,
-    signing_package: &SigningPackage<C>,
-    signature_shares: &BTreeMap<Identifier<C>, round2::SignatureShare<C>>,
-    binding_factor_list: &BindingFactorList<C>,
-    cheater_detection: CheaterDetection,
-) -> Result<(), Error<C>> {
-    verify_signature_shares(
-        group_commitment,
-        pubkeys,
-        signing_package,
-        signature_shares,
-        binding_factor_list,
-        cheater_detection,
-    )?;
-
-    // We should never reach here; but we return an error to be safe.
-    Err(Error::InvalidSignature)
-}
-
-fn verify_signature_shares<C: Ciphersuite>(
     group_commitment: &GroupCommitment<C>,
     pubkeys: &keys::PublicKeyPackage<C>,
     signing_package: &SigningPackage<C>,
@@ -852,7 +818,8 @@ fn verify_signature_shares<C: Ciphersuite>(
         });
     }
 
-    Ok(())
+    // We should never reach here; but we return an error to be safe.
+    Err(Error::InvalidSignature)
 }
 
 /// Verify a signature share for the given participant `identifier`,

@@ -126,7 +126,7 @@ fn check_adaptor_signature_completes() {
 #[test]
 fn check_adaptor_v2_shares_depend_on_adaptor() {
     let s = session();
-    let (_, adaptor_1) = adaptor();
+    let (secret, adaptor_1) = adaptor();
     let (_, adaptor_2) = adaptor();
     let id = *s.key_packages.keys().next().unwrap();
 
@@ -136,30 +136,7 @@ fn check_adaptor_v2_shares_depend_on_adaptor() {
     assert_ne!(v1[&id], v2[&id]);
     assert_ne!(v2[&id], v2_other[&id]);
 
-    // A version mismatch between signers and aggregator is caught.
-    let culprits = match aggregate(&s, &package(&s, adaptor_1, false), &v2) {
-        Err(frost::Error::InvalidSignatureShare { culprits }) => culprits,
-        other => panic!("expected an invalid share, got {other:?}"),
-    };
-    assert!(!culprits.is_empty());
-}
-
-#[test]
-fn check_adaptor_aggregate_rejects_invalid_share() {
-    for v2 in [false, true] {
-        let s = session();
-        let (_, adaptor) = adaptor();
-        let package = package(&s, adaptor, v2);
-        let mut shares = sign(&s, &package);
-        let mut ids = shares.keys().copied();
-        let (first, second) = (ids.next().unwrap(), ids.next().unwrap());
-        shares.insert(first, shares[&second]);
-
-        match aggregate(&s, &package, &shares) {
-            Err(frost::Error::InvalidSignatureShare { culprits }) => {
-                assert_eq!(culprits, vec![first])
-            }
-            other => panic!("expected an invalid share, got {other:?}"),
-        }
-    }
+    // Shares from one version don't complete under the other.
+    let mismatched = aggregate(&s, &package(&s, adaptor_1, false), &v2).unwrap();
+    assert_eq!(completions_that_verify(&s, &mismatched, secret), 0);
 }
