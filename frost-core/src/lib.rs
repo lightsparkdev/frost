@@ -385,6 +385,10 @@ pub struct SigningPackage<C: Ciphersuite> {
 
     /// The adaptor for the signing operation.
     adaptor: Option<VerifyingKey<C>>,
+
+    /// Whether the binding factor input includes the adaptor (version 2).
+    #[cfg_attr(feature = "serde", serde(default))]
+    adaptor_v2: bool,
 }
 
 impl<C> SigningPackage<C>
@@ -404,6 +408,7 @@ where
             signing_participants_groups: None,
             message: message.to_vec(),
             adaptor: None,
+            adaptor_v2: false,
         }
     }
 
@@ -419,6 +424,7 @@ where
             signing_participants_groups,
             message: message.to_vec(),
             adaptor: None,
+            adaptor_v2: false,
         }
     }
 
@@ -435,6 +441,25 @@ where
             signing_participants_groups,
             message: message.to_vec(),
             adaptor,
+            adaptor_v2: false,
+        }
+    }
+
+    /// Create a new `SigningPackage` with a set of signing participants and a version 2 adaptor.
+    pub fn new_with_adaptor_v2(
+        signing_commitments: BTreeMap<Identifier<C>, round1::SigningCommitments<C>>,
+        signing_participants_groups: Option<Vec<BTreeSet<Identifier<C>>>>,
+        message: &[u8],
+        adaptor: Option<VerifyingKey<C>>,
+    ) -> SigningPackage<C> {
+        SigningPackage {
+            adaptor_v2: true,
+            ..Self::new_with_adaptor(
+                signing_commitments,
+                signing_participants_groups,
+                message,
+                adaptor,
+            )
         }
     }
 
@@ -470,6 +495,10 @@ where
         binding_factor_input_prefix.extend_from_slice(
             C::H5(&round1::encode_group_commitments(self.signing_commitments())?[..]).as_ref(),
         );
+        // Like the verifying key, a serialized adaptor has a fixed length.
+        if let (true, Some(adaptor)) = (self.adaptor_v2, &self.adaptor) {
+            binding_factor_input_prefix.extend_from_slice(adaptor.serialize()?.as_ref());
+        }
         binding_factor_input_prefix.extend_from_slice(additional_prefix);
 
         Ok(self
@@ -702,7 +731,20 @@ where
     };
 
     if signing_package.adaptor.is_some() {
-        // If there is an adaptor, we skip the verification step.
+        // An adaptor signature only verifies once the adaptor's discrete log is
+        // added, which is unknown here, so verify each share instead.
+        let cheater_detection = match cheater_detection {
+            CheaterDetection::Disabled => CheaterDetection::FirstCheater,
+            cheater_detection => cheater_detection,
+        };
+        verify_signature_shares(
+            &group_commitment,
+            &pubkeys,
+            &signing_package,
+            &signature_shares,
+            &binding_factor_list,
+            cheater_detection,
+        )?;
         return Ok(signature);
     }
 
@@ -738,6 +780,27 @@ where
 /// Optional cheater detection feature
 /// Each share is verified to find the cheater
 fn detect_cheater<C: Ciphersuite>(
+    group_commitment: &GroupCommitment<C>,
+    pubkeys: &keys::PublicKeyPackage<C>,
+    signing_package: &SigningPackage<C>,
+    signature_shares: &BTreeMap<Identifier<C>, round2::SignatureShare<C>>,
+    binding_factor_list: &BindingFactorList<C>,
+    cheater_detection: CheaterDetection,
+) -> Result<(), Error<C>> {
+    verify_signature_shares(
+        group_commitment,
+        pubkeys,
+        signing_package,
+        signature_shares,
+        binding_factor_list,
+        cheater_detection,
+    )?;
+
+    // We should never reach here; but we return an error to be safe.
+    Err(Error::InvalidSignature)
+}
+
+fn verify_signature_shares<C: Ciphersuite>(
     group_commitment: &GroupCommitment<C>,
     pubkeys: &keys::PublicKeyPackage<C>,
     signing_package: &SigningPackage<C>,
@@ -789,8 +852,7 @@ fn detect_cheater<C: Ciphersuite>(
         });
     }
 
-    // We should never reach here; but we return an error to be safe.
-    Err(Error::InvalidSignature)
+    Ok(())
 }
 
 /// Verify a signature share for the given participant `identifier`,
