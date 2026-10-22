@@ -2,7 +2,12 @@
 #![allow(clippy::type_complexity)]
 #![cfg(feature = "serialization")]
 
-use alloc::{borrow::ToOwned, collections::BTreeMap, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    collections::{BTreeMap, BTreeSet},
+    vec,
+    vec::Vec,
+};
 use rand_core::{CryptoRng, RngCore};
 
 use crate as frost;
@@ -330,11 +335,36 @@ fn check_sign_errors<C: Ciphersuite + PartialEq>(
         .keys()
         .find(|&&id| id != key_package.identifier)
         .unwrap();
-    commitments.remove(&id);
-    let signing_package = frost::SigningPackage::new(commitments, signing_package.message());
+    let removed = commitments.remove(&id).unwrap();
+    let message = signing_package.message();
+    let flat_package = frost::SigningPackage::new(commitments.clone(), message);
 
-    let r = frost::round2::sign(&signing_package, &signing_nonces, &key_package);
+    let r = frost::round2::sign(&flat_package, &signing_nonces, &key_package);
     assert_eq!(r, Err(Error::IncorrectNumberOfCommitments));
+
+    let own_group: BTreeSet<_> = commitments.keys().copied().collect();
+    let other_id = Identifier::derive(b"other group").unwrap();
+    let mut with_other_group = commitments.clone();
+    with_other_group.insert(other_id, removed);
+    let grouped_package = frost::SigningPackage::new_with_participants_groups(
+        with_other_group,
+        Some(vec![own_group.clone(), BTreeSet::from([other_id])]),
+        message,
+    );
+
+    let r = frost::round2::sign(&grouped_package, &signing_nonces, &key_package);
+    assert_eq!(r, Err(Error::IncorrectNumberOfCommitments));
+
+    let mut listed_without_commitment = own_group;
+    listed_without_commitment.insert(id);
+    let grouped_package = frost::SigningPackage::new_with_participants_groups(
+        commitments,
+        Some(vec![listed_without_commitment]),
+        message,
+    );
+
+    let r = frost::round2::sign(&grouped_package, &signing_nonces, &key_package);
+    assert_eq!(r, Err(Error::MissingCommitment));
 }
 
 fn check_aggregate_errors<C: Ciphersuite + PartialEq>(

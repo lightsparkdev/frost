@@ -128,11 +128,19 @@ pub fn sign<C: Ciphersuite>(
     key_package: &frost::keys::KeyPackage<C>,
 ) -> Result<SignatureShare<C>, Error<C>> {
     let own_group_len = match &signing_package.signing_participants_groups {
-        Some(groups) => groups
-            .iter()
-            .find(|group| group.contains(&key_package.identifier))
-            .ok_or(Error::UnknownIdentifier)?
-            .len(),
+        Some(groups) => {
+            let own_group = groups
+                .iter()
+                .find(|group| group.contains(&key_package.identifier))
+                .ok_or(Error::UnknownIdentifier)?;
+            if own_group
+                .iter()
+                .any(|id| !signing_package.signing_commitments.contains_key(id))
+            {
+                return Err(Error::MissingCommitment);
+            }
+            own_group.len()
+        }
         None => signing_package.signing_commitments().len(),
     };
     if own_group_len < key_package.min_signers as usize {
